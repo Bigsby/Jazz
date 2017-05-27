@@ -5,7 +5,6 @@
     xhttp.onreadystatechange = function () {
         if (this.readyState == 4 && this.status == 200) {
             xml = xhttp.responseXML;
-            buildOutput();
             buildScore();
         }
     };
@@ -21,6 +20,22 @@
     }
 
     function buildScore() {
+
+        VF = Vex.Flow;
+
+        var scoreDiv = document.getElementById("score")
+        var renderer = new VF.Renderer(scoreDiv, VF.Renderer.Backends.SVG);
+        var formatter = new VF.Formatter();
+
+        var context = renderer.getContext();
+        context.setFont("Arial", 10, "");
+
+        var currentMeasureCount = 0;
+        var systemCount = 1;
+        var staveWidth = 350;
+        var staveHeight = 130;
+        var currentX = 0;
+        var currentY = 0;
 
         function addStaveAttributes(attributesNode, stave) {
             var clefNode = selectSingle("clef", attributesNode);
@@ -38,6 +53,85 @@
             var timeNode = selectSingle("time", attributesNode);
             if (timeNode) {
                 stave.addTimeSignature(selectSingle("beats", timeNode).textContent + "/" + selectSingle("beat-type", timeNode).textContent);
+            }
+        }
+
+        function addDirection(directionNode, stave) {
+            // stave.setRepetitionTypeRight(VF.Repetition.type.CODA_RIGHT, 0)
+            // NONE: 1,         // no coda or segno
+            // CODA_LEFT: 2,    // coda at beginning of stave
+            // CODA_RIGHT: 3,   // coda at end of stave
+            // SEGNO_LEFT: 4,   // segno at beginning of stave
+            // SEGNO_RIGHT: 5,  // segno at end of stave
+            // DC: 6,           // D.C. at end of stave
+            // DC_AL_CODA: 7,   // D.C. al coda at end of stave
+            // DC_AL_FINE: 8,   // D.C. al Fine end of stave
+            // DS: 9,           // D.S. at end of stave
+            // DS_AL_CODA: 10,  // D.S. al coda at end of stave
+            // DS_AL_FINE: 11,  // D.S. al Fine at end of stave
+            // FINE: 12, 
+            var codaNode = selectSingle("direction-type/coda", directionNode);
+            if (codaNode) {
+                var offsetNode = selectSingle("sound/offset", directionNode);
+                if (offsetNode) {
+                    stave.setRepetitionTypeRight(VF.Repetition.type.CODA_RIGHT, 0);
+                } else {
+                    stave.setRepetitionTypeLeft(VF.Repetition.type.CODA_LEFT, 0);
+                }
+            }
+        }
+
+        function addBarline(barlineNode, stave) {
+            // stave.setEndBarType(VF.Barline.type.REPEAT_END);
+            // VF.Barline.type: SINGLE: 1, DOUBLE: 2, END: 3, REPEAT_BEGIN: 4, REPEAT_END: 5, REPEAT_BOTH: 6, NONE: 7
+            // stave..setMeasure(3); set barnumber
+            // stave.setVoltaType(VF.Volta.type.BEGIN, "1.", -5);
+            // VF.Volta.type:
+            //  NONE: 1, BEGIN: 2, MID: 3, END: 4, BEGIN_END: 5
+            var barStyleNode = selectSingle("bar-style", barlineNode);
+            if (barStyleNode)
+                switch (barStyleNode.textContent) {
+                    case "light-heavy":
+                        stave.setEndBarType(VF.Barline.type.END);
+                        break;
+                    case "light-light":
+                        stave.setEndBarType(VF.Barline.type.DOUBLE);
+                        break;
+                }
+
+            var repeatNode = selectSingle("repeat", barlineNode);
+            if (repeatNode) {
+                switch (barlineNode.getAttribute("location")) {
+                    case "right":
+                        stave.setEndBarType(VF.Barline.type.REPEAT_END);
+                        break;
+                    case "left":
+                        stave.setBegBarType(VF.Barline.type.REPEAT_START);
+                        break;
+                }
+            }
+
+            var endingNode = selectSingle("ending", barlineNode);
+            if (endingNode) {
+                var endingNumber = endingNode.getAttribute("number");
+
+                switch (endingNode.getAttribute("type")) {
+                    case "start":
+                        stave.setVoltaType(VF.Volta.type.BEGIN, endingNumber + ".", 5);
+                        stave.ending = {
+                            number: endingNumber
+                        };
+                        break;
+                    case "stop":
+                        if (stave.ending) {
+                            stave.setVoltaType(VF.Volta.type.BEGIN_END, endingNumber + ".", 5);
+                        } else {
+                            stave.setVoltaType(VF.Volta.type.END, "", 5);
+                        }
+                        break;
+                    case "discontinue":
+                        break;
+                }
             }
         }
 
@@ -78,7 +172,23 @@
             note.addAccidental(0, new VF.Accidental(buildAccidental(accidentalsNode.textContent)));
         }
 
-        function buildNote(noteNode) {
+        function addArticulation(note, notationNode, lastTieStart) {
+            // LEFT: 1, RIGHT: 2, ABOVE: 3, BELOW: 4,
+            switch (notationNode.nodeName) {
+                case "fermata":
+                    note.addArticulation(0, new VF.Articulation("a@a").setPosition(3));
+                    break;
+                case "tied":
+                    if (notationNode.getAttribute("type") == "start") {
+                        note.isTieStart = true;
+                    } else {
+                        note.isTieEnd = true;
+                    }
+                    break;
+            }
+        }
+
+        function buildNote(noteNode, lastTieStart) {
             var pitchText = "b/4";
             var pitchNode = selectSingle("pitch", noteNode);
             if (pitchNode) {
@@ -86,79 +196,94 @@
                 pitchText += "/" + selectSingle("octave", pitchNode).textContent;
             }
 
-            var result = new VF.StaveNote({
+            var dotNode = selectSingle("dot", noteNode);
+
+            var note = new VF.StaveNote({
                 keys: [pitchText],
                 duration:
                 buildDuration(selectSingle("type", noteNode).textContent)
                 + buildRest(selectSingle("rest", noteNode))
-                + buildDotText(selectSingle("dot", noteNode))
+                + buildDotText(dotNode)
             });
 
-            addAccidentals(result, selectSingle("accidental", noteNode));
+            addAccidentals(note, selectSingle("accidental", noteNode));
+            if (dotNode)
+                note.addDotToAll();
 
-            return result;
+            var notationNodes = selectMany("notations/*", noteNode);
+            var currentNotation = notationNodes.iterateNext();
+            while (currentNotation) {
+                addArticulation(note, currentNotation, lastTieStart);
+                currentNotation = notationNodes.iterateNext();
+            }
+
+            return note;
         }
-
-        VF = Vex.Flow;
-
-        var scoreDiv = document.getElementById("score")
-        var renderer = new VF.Renderer(scoreDiv, VF.Renderer.Backends.SVG);
-        var formatter = new VF.Formatter();
-
-        var context = renderer.getContext();
-        context.setFont("Arial", 10, "");
-
-        var currentMessureCount = 0;
-        var systemCount = 1;
-        var staveWidth = 380;
-        var staveHeight = 100;
-        var currentX = 0;
-        var currentY = 0;
 
         var measuresPath = "score-partwise/part//measure";
 
         if (xml.evaluate) {
             var measures = selectMany(measuresPath);
-            var currentMesure = measures.iterateNext();
+            var currentMeasure = measures.iterateNext();
 
-            while (currentMesure) {
-                currentMessureCount++;
+            while (currentMeasure) {
+                currentMeasureCount++;
 
                 var stave = new VF.Stave(currentX, currentY, staveWidth);
                 stave.setContext(context);
 
-                var attributesNode = selectSingle("attributes", currentMesure);
-
-                if (attributesNode) {
-                    addStaveAttributes(attributesNode, stave);
-                }
-
-                stave.draw();
-
                 var notes = [];
 
-                var notesAndHarmonies = selectMany("*", currentMesure);
-                var currentNoteOrHarmony = notesAndHarmonies.iterateNext();
-                
-                while (currentNoteOrHarmony) {
+                var measureChildren = selectMany("*", currentMeasure);
+                var measureChild = measureChildren.iterateNext();
+                var lastTieStart;
 
-                    switch (currentNoteOrHarmony.nodeName) {
+                while (measureChild) {
+                    switch (measureChild.nodeName) {
+                        case "attributes":
+                            addStaveAttributes(measureChild, stave);
+                            break;
+                        case "barline":
+                            addBarline(measureChild, stave);
+                            break;
+                        case "direction":
+                            addDirection(measureChild, stave);
+                            break;
                         case "note":
-                            notes.push(buildNote(currentNoteOrHarmony));
+                            var note = buildNote(measureChild, lastTieStart);
+                            if (note.isTieEnd)
+                                lastTieStart = null;
+                            if (note.isTieStart)
+                                lastTieStart = note;
+                            notes.push(note);
                             break;
                         case "harmony":
                             break;
                     }
-
-                    currentNoteOrHarmony = notesAndHarmonies.iterateNext();
+                    measureChild = measureChildren.iterateNext();
                 }
 
+                stave.draw();
+
                 var beams = VF.Beam.generateBeams(notes);
+
                 VF.Formatter.FormatAndDraw(context, stave, notes);
                 beams.forEach(function (b) { b.setContext(context).draw() });
+                var voice = new VF.Voice(VF.TIME4_4);
+                voice.addTickables(notes);
+                formatter.joinVoices([voice]).formatToStave([voice], stave);
+                voice.draw(context, stave);
 
-                currentMesure = measures.iterateNext();
-                if (currentMessureCount == 4) {
+                // new VF.StaveTie({
+                //             first_note: lastTieStart,
+                //             last_note: note,
+                //             first_indices: [0],
+                //             last_indices: [0],
+                //         }).setContext(context).draw();
+
+                currentMeasure = measures.iterateNext();
+                if (currentMeasureCount == 4) {
+                    currentMeasureCount = 0;
                     currentX = 0;
                     systemCount++;
                     currentY += staveHeight;
@@ -170,117 +295,28 @@
             renderer.resize(staveWidth * 4, systemCount * staveHeight);
         }
     }
-
-    function buildOutput() {
-
-        function buildNoteText(noteNode) {
-            var noteText = "";
-            var pitchNode = selectSingle("pitch", noteNode);
-            if (pitchNode) {
-                noteText = selectSingle("step", pitchNode).textContent;
-                noteText += selectSingle("octave", pitchNode).textContent;
-            }
-
-            var restNode = selectSingle("rest", noteNode);
-            if (restNode) {
-                noteText += "rest";
-            }
-
-            noteText += "-" + selectSingle("type", noteNode).textContent;
-            return noteText;
-        }
-
-        function buildDegreeText(degreeNode) {
-            return "degree";
-        }
-
-        function buildHarmonyText(harmonyNode) {
-            var harmonyText = "";
-            harmonyText += selectSingle("root/root-step", harmonyNode).textContent;
-            harmonyText += " " + selectSingle("kind", harmonyNode).textContent;
-
-            var degreeNodes = selectMany("degree", harmonyNode);
-            var currentDegree = degreeNodes.iterateNext();
-
-            if (currentDegree) {
-                var degreesTexts = [];
-                while (currentDegree) {
-                    degreesTexts.push(buildDegreeText(currentDegree));
-                    currentDegree = degreeNodes.iterateNext();
-                }
-                harmonyText += " ( " + degreesTexts.join(" ,") + " )";
-            }
-            return harmonyText;
-        }
-
-        function buildAttributesText(attributesNode) {
-            var attributesText = "";
-
-            var keyNode = selectSingle("key", attributesNode);
-            if (keyNode) {
-                attributesText += selectSingle("fifths", keyNode).textContent;
-                attributesText += ", " + selectSingle("mode", keyNode).textContent;
-            }
-
-            var timeNode = selectSingle("time", attributesNode);
-            if (timeNode) {
-                attributesText += ", " + selectSingle("beats", timeNode).textContent;
-                attributesText += "/" + selectSingle("beat-type", timeNode).textContent;
-            }
-
-            var clefNode = selectSingle("clef", attributesNode);
-            if (clefNode) {
-                attributesText += ", " + selectSingle("sign", clefNode).textContent + " clef";
-            }
-
-            return attributesText;
-        }
-
-        var measuresPath = "score-partwise/part//measure";
-        var outputDiv = document.getElementById("output");
-        if (xml.evaluate) {
-            var measures = selectMany(measuresPath);
-            var currentMesure = measures.iterateNext();
-
-            while (currentMesure) {
-                var measureSpan = document.createElement("span");
-                var measureText = "Measure " + currentMesure.getAttribute("number");
-
-                var attributesNode = selectSingle("attributes", currentMesure);
-
-                if (attributesNode) {
-                    measureText += " ( " + buildAttributesText(attributesNode) + " )";
-                }
-
-
-                measureText += " > [ ";
-
-                var notesAndHarmonies = selectMany("*", currentMesure);
-                var currentNoteOrHarmony = notesAndHarmonies.iterateNext();
-
-                var notesAndHarmoniesTexts = [];
-                while (currentNoteOrHarmony) {
-
-                    switch (currentNoteOrHarmony.nodeName) {
-                        case "note":
-                            notesAndHarmoniesTexts.push(buildNoteText(currentNoteOrHarmony));
-                            break;
-                        case "harmony":
-                            notesAndHarmoniesTexts.push(buildHarmonyText(currentNoteOrHarmony));
-                            break;
-                    }
-
-                    currentNoteOrHarmony = notesAndHarmonies.iterateNext();
-                }
-
-                measureText += notesAndHarmoniesTexts.join(", ");
-
-                measureText += " ]";
-
-                measureSpan.innerHTML = measureText + "<br/>";
-                outputDiv.appendChild(measureSpan);
-                currentMesure = measures.iterateNext();
-            }
-        }
-    }
 })();
+
+//TODO
+// ties
+// harmony
+// new system
+// title and composer
+// (optional)
+// tempo direction
+// change key
+
+// Tests display - http://www.vexflow.com/tests/
+// Tests source - http://www.vexflow.com/build/vexflow-tests.js
+
+// VexFlow tables - https://github.com/0xfe/vexflow/blob/e107adf1b7c4512b4ec73d46b0e607332b5535b8/src/tables.js
+
+// VexFlow source - https://github.com/0xfe/vexflow/tree/e107adf1b7c4512b4ec73d46b0e607332b5535b8/src
+
+// VexFlow Wiki - https://github.com/0xfe/vexflow/wiki/Beams
+
+// Sample PDF URI - file:///C:/Users/bigsb/Documents/Scores/Jazz%20Standards/Take%20the%20'A'%20Train%20-%20Full%20Score.pdf
+
+// Sample MusicXML Path - C:\Git\Bigsby\Music\test\TakeATrain.xml
+
+// MusicXML XSD Path - C:\Git\Bigsby\Music\Standards\musicxml.xsd
