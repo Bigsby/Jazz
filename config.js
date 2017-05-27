@@ -10,6 +10,9 @@ exports.mimeTypes = {
     "application/json": [
         ".json"
     ],
+    "application/xml": [
+        ".xml"
+    ],
     "text/css": [
         ".css"
     ],
