@@ -27,17 +27,18 @@
 
         var scoreDiv = document.getElementById("score")
         var renderer = new VF.Renderer(scoreDiv, VF.Renderer.Backends.SVG);
+        renderer.resize(
+            parseInt(selectSingle("score-partwise/defaults/page-layout/page-width").textContent),
+            parseInt(selectSingle("score-partwise/defaults/page-layout/page-height").textContent));
         var formatter = new VF.Formatter();
 
         var context = renderer.getContext();
         context.setFont("Arial", 10, "");
 
         var currentMeasureCount = 0;
-        var systemCount = 1;
-        var staveWidth = 300;
-        var staveHeight = 130;
-        var currentX = 0;
-        var currentY = 20;
+        var leftMargin = parseInt(selectSingle("score-partwise/defaults/system-layout/system-margins/left-margin").textContent);
+        var currentX = leftMargin;
+        var currentY = 0;
 
         function addStaveAttributes(attributesNode, stave) {
             var clefNode = selectSingle("clef", attributesNode);
@@ -208,6 +209,11 @@
                 + buildDotText(dotNode)
             });
 
+            var stemNode = selectSingle("stem", noteNode);
+            if (stemNode) {
+                note.setStemDirection(stemNode.textContent === "up" ? 1 : -1);
+            }
+
             addAccidentals(note, selectSingle("accidental", noteNode));
             if (dotNode)
                 note.addDotToAll();
@@ -272,14 +278,29 @@
 
         var measuresPath = "score-partwise/part//measure";
 
+        function setCoordinates(layoutNode) {
+            var topSystemDistanceNode = selectSingle("top-system-distance", layoutNode);
+            if (topSystemDistanceNode) {
+                currentY = parseInt(topSystemDistanceNode.textContent);
+            } else {
+                currentY += parseInt(selectSingle("system-distance", layoutNode).textContent);
+                currentX = leftMargin;
+            }
+
+        }
+
         if (xml.evaluate) {
             var measures = selectMany(measuresPath);
             var currentMeasure = measures.iterateNext();
 
             while (currentMeasure) {
-                currentMeasureCount++;
+                var measureWidth = parseInt(currentMeasure.getAttribute("width"));
+                var layoutNode = selectSingle("print/system-layout", currentMeasure);
 
-                var stave = new VF.Stave(currentX, currentY, staveWidth);
+                if (layoutNode)
+                    setCoordinates(layoutNode);
+
+                var stave = new VF.Stave(currentX, currentY, measureWidth);
                 stave.setContext(context);
 
                 var notes = [];
@@ -325,20 +346,16 @@
 
                 stave.draw();
 
-                var beams = VF.Beam.generateBeams(notes);
-
-                VF.Formatter.FormatAndDraw(context, stave, notes);
-                beams.forEach(function (b) { b.setContext(context).draw() });
-
-                var voices = [
-                    new VF.Voice(VF.TIME4_4).addTickables(notes)
-                ];
+                var notesVoice = new VF.Voice(VF.TIME4_4).addTickables(notes);
+                var beams = VF.Beam.applyAndGetBeams(notesVoice);
+                var voices = [notesVoice];
 
                 if (hasHarmony)
                     voices.push(new VF.Voice(VF.TIME4_4).addTickables(harmonies).setMode(VF.Voice.Mode.FULL));
 
                 formatter.joinVoices(voices).formatToStave(voices, stave);
-                voices.forEach(function (voice) { voice.draw(context, stave) });
+                voices.forEach(function (voice) { voice.draw(context, stave); });
+                beams.forEach(function (b) { b.setContext(context).draw(); });
 
                 notes.forEach(function (note) {
                     if (note.isTieEnd) {
@@ -355,34 +372,33 @@
                 });
 
                 currentMeasure = measures.iterateNext();
-                if (currentMeasureCount == 4) {
-                    currentMeasureCount = 0;
-                    currentX = 0;
-                    systemCount++;
-                    currentY += staveHeight;
-                    if (lastTieStart) {
-                        new VF.StaveTie({
-                            first_note: lastTieStart,
-                            last_note: null,
-                            first_indices: [0],
-                            last_indices: [0],
-                        }).setContext(context).draw();
-                        lastTieStart = null;
-                    }
-                } else {
-                    currentX += staveWidth;
-                }
+                // if (currentMeasureCount == 4) {
+                //     currentMeasureCount = 0;
+                //     currentX = 0;
+                //     systemCount++;
+                //     currentY += staveHeight;
+                //     if (lastTieStart) {
+                //         new VF.StaveTie({
+                //             first_note: lastTieStart,
+                //             last_note: null,
+                //             first_indices: [0],
+                //             last_indices: [0],
+                //         }).setContext(context).draw();
+                //         lastTieStart = null;
+                //     }
+                // } else {
+                currentX += measureWidth;
+                //}
             }
 
-            renderer.resize(staveWidth * 4, systemCount * staveHeight);
+            //renderer.resize(staveWidth * 4, systemCount * staveHeight);
         }
     }
 })();
 
 //TODO
-// new system
 // title and composer
-// (optional)
+// (optionals)
 // tempo direction
 // change key
 
