@@ -1,5 +1,6 @@
 (function () {
-    var filePath = "TakeATrain.xml";
+    //var filePath = "TakeATrain.xml";
+    var filePath = "BeautifulLove.xml";
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState == 4 && this.status == 200) {
@@ -8,8 +9,6 @@
     };
     xhttp.open("GET", filePath, true);
     xhttp.send();
-
-
 
     function buildScore(xml) {
         function selectSingle(path, context) {
@@ -20,24 +19,29 @@
             return xml.evaluate(path, context || xml, null, XPathResult.ANY_TYPE, null);
         }
 
-        var titleHeader = document.getElementById("title");
-        titleHeader.innerText = selectSingle("score-partwise/work/work-title").textContent;
+        document.getElementById("title").innerText = selectSingle("score-partwise/work/work-title").textContent;
+        var composerNode = selectSingle("score-partwise/identification/creator[@type='composer']");
+        if (composerNode)
+            document.getElementById("composer").innerText = composerNode.textContent;
+        var topOffset = 150;
 
         VF = Vex.Flow;
 
-        var scoreDiv = document.getElementById("score")
+        var scoreDiv = document.getElementById("score");
+        var leftMargin = parseInt(selectSingle("score-partwise/defaults/system-layout/system-margins/left-margin").textContent);
+
         var renderer = new VF.Renderer(scoreDiv, VF.Renderer.Backends.SVG);
         renderer.resize(
-            parseInt(selectSingle("score-partwise/defaults/page-layout/page-width").textContent),
-            parseInt(selectSingle("score-partwise/defaults/page-layout/page-height").textContent));
+            parseInt(selectSingle("score-partwise/defaults/page-layout/page-width").textContent) - (leftMargin * 5),
+            parseInt(selectSingle("score-partwise/defaults/page-layout/page-height").textContent) - topOffset);
         var formatter = new VF.Formatter();
 
         var context = renderer.getContext();
-        context.setFont("Arial", 10, "");
 
         var currentMeasureCount = 0;
-        var leftMargin = parseInt(selectSingle("score-partwise/defaults/system-layout/system-margins/left-margin").textContent);
+
         var currentX = leftMargin;
+        var endingOffset = 20;
         var currentY = 0;
 
         function addStaveAttributes(attributesNode, stave) {
@@ -120,20 +124,20 @@
 
                 switch (endingNode.getAttribute("type")) {
                     case "start":
-                        stave.setVoltaType(VF.Volta.type.BEGIN, endingNumber + ".", 5);
+                        stave.setVoltaType(VF.Volta.type.BEGIN, endingNumber + ".", endingOffset);
                         stave.ending = {
                             number: endingNumber
                         };
-                        break;
+                        return true;
                     case "stop":
                         if (stave.ending) {
-                            stave.setVoltaType(VF.Volta.type.BEGIN_END, endingNumber + ".", 5);
+                            stave.setVoltaType(VF.Volta.type.BEGIN_END, endingNumber + ".", endingOffset);
                         } else {
-                            stave.setVoltaType(VF.Volta.type.END, "", 5);
+                            stave.setVoltaType(VF.Volta.type.END, "", endingOffset);
                         }
-                        break;
+                        return false;
                     case "discontinue":
-                        break;
+                        return false;
                 }
             }
         }
@@ -165,6 +169,8 @@
                     return "#";
                 case "flat":
                     return "b";
+                case "natural":
+                    return "n";
             }
         }
 
@@ -265,7 +271,12 @@
             return {
                 text: text,
                 superscript: buildHarmonySuperscript(kind),
-                subscript: buildHarmonySubscript(harmonyNode)
+                subscript: buildHarmonySubscript(harmonyNode),
+                font: {
+                    family: "Arial",
+                    size: 16,
+                    weight: "bold"
+                }
             };
         }
 
@@ -281,17 +292,17 @@
         function setCoordinates(layoutNode) {
             var topSystemDistanceNode = selectSingle("top-system-distance", layoutNode);
             if (topSystemDistanceNode) {
-                currentY = parseInt(topSystemDistanceNode.textContent);
+                currentY = parseInt(topSystemDistanceNode.textContent) - topOffset;
             } else {
                 currentY += parseInt(selectSingle("system-distance", layoutNode).textContent);
                 currentX = leftMargin;
             }
-
         }
 
         if (xml.evaluate) {
             var measures = selectMany(measuresPath);
             var currentMeasure = measures.iterateNext();
+            var isVoltaOnGoing = false;
 
             while (currentMeasure) {
                 var measureWidth = parseInt(currentMeasure.getAttribute("width"));
@@ -302,6 +313,9 @@
 
                 var stave = new VF.Stave(currentX, currentY, measureWidth);
                 stave.setContext(context);
+
+                if (isVoltaOnGoing)
+                    stave.setVoltaType(VF.Volta.type.MID, "", endingOffset);
 
                 var notes = [];
                 var harmonies = [];
@@ -318,7 +332,7 @@
                             addStaveAttributes(measureChild, stave);
                             break;
                         case "barline":
-                            addBarline(measureChild, stave);
+                            isVoltaOnGoing |= addBarline(measureChild, stave);
                             break;
                         case "direction":
                             addDirection(measureChild, stave);
@@ -346,7 +360,7 @@
 
                 stave.draw();
 
-                var notesVoice = new VF.Voice(VF.TIME4_4).addTickables(notes);
+                var notesVoice = new VF.Voice(VF.TIME4_4).setMode(VF.Voice.Mode.FULL).addTickables(notes);
                 var beams = VF.Beam.applyAndGetBeams(notesVoice);
                 var voices = [notesVoice];
 
@@ -372,32 +386,13 @@
                 });
 
                 currentMeasure = measures.iterateNext();
-                // if (currentMeasureCount == 4) {
-                //     currentMeasureCount = 0;
-                //     currentX = 0;
-                //     systemCount++;
-                //     currentY += staveHeight;
-                //     if (lastTieStart) {
-                //         new VF.StaveTie({
-                //             first_note: lastTieStart,
-                //             last_note: null,
-                //             first_indices: [0],
-                //             last_indices: [0],
-                //         }).setContext(context).draw();
-                //         lastTieStart = null;
-                //     }
-                // } else {
                 currentX += measureWidth;
-                //}
             }
-
-            //renderer.resize(staveWidth * 4, systemCount * staveHeight);
         }
     }
 })();
 
 //TODO
-// title and composer
 // (optionals)
 // tempo direction
 // change key

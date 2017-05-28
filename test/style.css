@@ -2,12 +2,17 @@ body{
     background-color: lightgoldenrodyellow;
 }
 
-h1{
+h1#title{
     margin-top: 40px;
     text-align: center;
 }
 
-div{
+div#score{
     text-align: center;
     margin-top: 30px;
+    background-color: lightgray;
+}
+
+div#container{
+    margin: 0 auto;
 }
