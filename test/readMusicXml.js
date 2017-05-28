@@ -1,25 +1,27 @@
 (function () {
     var filePath = "TakeATrain.xml";
     var xhttp = new XMLHttpRequest();
-    var xml;
     xhttp.onreadystatechange = function () {
         if (this.readyState == 4 && this.status == 200) {
-            xml = xhttp.responseXML;
-            buildScore();
+            buildScore(xhttp.responseXML);
         }
     };
     xhttp.open("GET", filePath, true);
     xhttp.send();
 
-    function selectSingle(path, context) {
-        return xml.evaluate(path, context || xml, null, XPathResult.ANY_TYPE, null).iterateNext();
-    }
 
-    function selectMany(path, context) {
-        return xml.evaluate(path, context || xml, null, XPathResult.ANY_TYPE, null);
-    }
 
-    function buildScore() {
+    function buildScore(xml) {
+        function selectSingle(path, context) {
+            return xml.evaluate(path, context || xml, null, XPathResult.ANY_TYPE, null).iterateNext();
+        }
+
+        function selectMany(path, context) {
+            return xml.evaluate(path, context || xml, null, XPathResult.ANY_TYPE, null);
+        }
+
+        var titleHeader = document.getElementById("title");
+        titleHeader.innerText = selectSingle("score-partwise/work/work-title").textContent;
 
         VF = Vex.Flow;
 
@@ -32,10 +34,10 @@
 
         var currentMeasureCount = 0;
         var systemCount = 1;
-        var staveWidth = 350;
+        var staveWidth = 300;
         var staveHeight = 130;
         var currentX = 0;
-        var currentY = 0;
+        var currentY = 20;
 
         function addStaveAttributes(attributesNode, stave) {
             var clefNode = selectSingle("clef", attributesNode);
@@ -172,7 +174,7 @@
             note.addAccidental(0, new VF.Accidental(buildAccidental(accidentalsNode.textContent)));
         }
 
-        function addArticulation(note, notationNode, lastTieStart) {
+        function addArticulation(note, notationNode) {
             // LEFT: 1, RIGHT: 2, ABOVE: 3, BELOW: 4,
             switch (notationNode.nodeName) {
                 case "fermata":
@@ -188,7 +190,7 @@
             }
         }
 
-        function buildNote(noteNode, lastTieStart) {
+        function buildNote(noteNode) {
             var pitchText = "b/4";
             var pitchNode = selectSingle("pitch", noteNode);
             if (pitchNode) {
@@ -213,11 +215,59 @@
             var notationNodes = selectMany("notations/*", noteNode);
             var currentNotation = notationNodes.iterateNext();
             while (currentNotation) {
-                addArticulation(note, currentNotation, lastTieStart);
+                addArticulation(note, currentNotation);
                 currentNotation = notationNodes.iterateNext();
             }
 
             return note;
+        }
+
+        function buildHarmonySuperscript(kind) {
+            switch (kind) {
+                case "major":
+                    return "";
+                case "dominant":
+                    return "7";
+                case "minor-seventh":
+                    return "7";
+            }
+        }
+
+        function buildHarmonySubscript(harmonyNode) {
+            var degreeNode = selectSingle("degree", harmonyNode);
+            if (!degreeNode)
+                return "";
+
+            var text = "";
+            switch (selectSingle("degree-alter", degreeNode).textContent) {
+                case "-1":
+                    text = VF.unicode["flat"];
+                    break;
+                case "1":
+                    text = VF.unicode["sharp"];
+                    break;
+            }
+
+            return text + selectSingle("degree-value", degreeNode).textContent;
+        }
+
+        function buildHarmony(harmonyNode) {
+            var text = selectSingle("root/root-step", harmonyNode).textContent;
+            var kind = selectSingle("kind", harmonyNode).textContent;
+            if (kind.startsWith("minor"))
+                text += " -";
+            return {
+                text: text,
+                superscript: buildHarmonySuperscript(kind),
+                subscript: buildHarmonySubscript(harmonyNode)
+            };
+        }
+
+        function calculateHarmonyDuration(durations) {
+            if (!durations.length)
+                return "";
+            if (durations.length == 1)
+                return durations[0];
         }
 
         var measuresPath = "score-partwise/part//measure";
@@ -233,10 +283,13 @@
                 stave.setContext(context);
 
                 var notes = [];
+                var harmonies = [];
 
                 var measureChildren = selectMany("*", currentMeasure);
                 var measureChild = measureChildren.iterateNext();
                 var lastTieStart;
+                var pendingHarmony;
+                var hasHarmony = false;
 
                 while (measureChild) {
                     switch (measureChild.nodeName) {
@@ -250,15 +303,22 @@
                             addDirection(measureChild, stave);
                             break;
                         case "note":
-                            var note = buildNote(measureChild, lastTieStart);
-                            if (note.isTieEnd)
-                                lastTieStart = null;
-                            if (note.isTieStart)
-                                lastTieStart = note;
+                            var note = buildNote(measureChild);
                             notes.push(note);
+                            if (pendingHarmony) {
+                                pendingHarmony.duration = note.duration;
+                                harmonies.push(new VF.TextNote(pendingHarmony).setContext(context));
+                                pendingHarmony = null;
+                            } else {
+                                harmonies.push(new VF.TextNote({
+                                    text: "",
+                                    duration: note.duration
+                                }).setContext(context));
+                            }
                             break;
                         case "harmony":
-                            break;
+                            hasHarmony = true;
+                            pendingHarmony = buildHarmony(measureChild);
                     }
                     measureChild = measureChildren.iterateNext();
                 }
@@ -269,17 +329,30 @@
 
                 VF.Formatter.FormatAndDraw(context, stave, notes);
                 beams.forEach(function (b) { b.setContext(context).draw() });
-                var voice = new VF.Voice(VF.TIME4_4);
-                voice.addTickables(notes);
-                formatter.joinVoices([voice]).formatToStave([voice], stave);
-                voice.draw(context, stave);
 
-                // new VF.StaveTie({
-                //             first_note: lastTieStart,
-                //             last_note: note,
-                //             first_indices: [0],
-                //             last_indices: [0],
-                //         }).setContext(context).draw();
+                var voices = [
+                    new VF.Voice(VF.TIME4_4).addTickables(notes)
+                ];
+
+                if (hasHarmony)
+                    voices.push(new VF.Voice(VF.TIME4_4).addTickables(harmonies).setMode(VF.Voice.Mode.FULL));
+
+                formatter.joinVoices(voices).formatToStave(voices, stave);
+                voices.forEach(function (voice) { voice.draw(context, stave) });
+
+                notes.forEach(function (note) {
+                    if (note.isTieEnd) {
+                        new VF.StaveTie({
+                            first_note: lastTieStart,
+                            last_note: note,
+                            first_indices: [0],
+                            last_indices: [0],
+                        }).setContext(context).draw();
+                        lastTieStart = null;
+                    }
+                    if (note.isTieStart)
+                        lastTieStart = note;
+                });
 
                 currentMeasure = measures.iterateNext();
                 if (currentMeasureCount == 4) {
@@ -287,6 +360,15 @@
                     currentX = 0;
                     systemCount++;
                     currentY += staveHeight;
+                    if (lastTieStart) {
+                        new VF.StaveTie({
+                            first_note: lastTieStart,
+                            last_note: null,
+                            first_indices: [0],
+                            last_indices: [0],
+                        }).setContext(context).draw();
+                        lastTieStart = null;
+                    }
                 } else {
                     currentX += staveWidth;
                 }
@@ -298,8 +380,6 @@
 })();
 
 //TODO
-// ties
-// harmony
 // new system
 // title and composer
 // (optional)
