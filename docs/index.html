@@ -2,24 +2,37 @@
 <html>
 
 <head>
-    <title>Hello Languages! - Bigsby</title>
-    <meta name="keywords" content="programming languages,programming language compare,compare,javascript,js,c++,cpp,cplusplus,python,py,f#,fs,fsharp,golang,go,ruby,rb,c#,csharp,cs,java,perl,pl,powershel,ps1,php,vb.net" />
+    <title>MusicXML to SVG - Bigsby</title>
+    <meta name="keywords" content="programming languages,programming language compare,compare,javascript,js,c++,cpp,cplusplus,python,py,f#,fs,fsharp,golang,go,ruby,rb,c#,csharp,cs,java,perl,pl,powershel,ps1,php,vb.net"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="base/styles/coreStyles.css" />
+    <script src="https://unpkg.com/vexflow/releases/vexflow-min.js"></script>
 </head>
 
 <body>
     <header ui-sref="home">
-        <h1>Hello Languages</h1>
-		<h4>A tour programming languages</h4>
+        <h1>MusicXML to SVG</h1>
+        <h4>A tour programming languages</h4>
     </header>
     <section class="content">
         <section class="innerContent">
-            <ui-view>
+            <!--<ui-view>
                 <div class="loaderContainer">
                     <div class="loader"></div>
                 </div>
-            </ui-view>
+            </ui-view>-->
+            <select id="selectScore">
+                <option value="TakeATrain.xml" selected>Take The 'A' Train</option>
+                <option value="BeautifulLove.xml">Beautiful Love</option>
+                <option selected value="WhenSunnyGetsBlue.xml">When Sunny Gets Blue</option>
+            </select>
+            <div id="container">
+                <h1 id="title"></h1>
+                <span id="composer"></span>
+                <div id="score"></div>
+            </div>
+            
         </section>
     </section>
     <footer>
@@ -28,6 +41,7 @@
     </footer>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/systemjs/0.20.10/system.js"></script>
     <script src="base/scripts/bootstrap.js"></script>
+    <script src="readMusicXml.js"></script>
 </body>
 
 </html>

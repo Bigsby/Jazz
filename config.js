@@ -28,5 +28,5 @@ exports.mimeTypes = {
     ]
 };
 
-exports.root = "./test";
+exports.root = "./docs";
 exports.defaultDocument = "index.html";
