@@ -44,6 +44,26 @@
         var endingOffset = 20;
         var currentY = 0;
 
+        function getKey(value){
+            switch (value){
+                case 1: return "G";
+                case 2: return "D";
+                case 3: return "A";
+                case 4: return "E";
+                case 5: return "B";
+                case 6: return "F#";
+                case 7: return "C#";
+                case -1: return "F";
+                case -2: return "Bb";
+                case -3: return "Eb";
+                case -4: return "Ab";
+                case -5: return "Db";
+                case -6: return "Gb";
+                case -7: return "Cb";
+            }
+            return "C";
+        }
+
         function addStaveAttributes(attributesNode, stave) {
             var clefNode = selectSingle("clef", attributesNode);
             if (clefNode) {
@@ -60,6 +80,11 @@
             var timeNode = selectSingle("time", attributesNode);
             if (timeNode) {
                 stave.addTimeSignature(selectSingle("beats", timeNode).textContent + "/" + selectSingle("beat-type", timeNode).textContent);
+            }
+
+            var keyNode = selectSingle("key", attributesNode);
+            if (keyNode){
+                stave.addKeySignature(getKey(parseInt(selectSingle("fifths", keyNode).textContent)));
             }
         }
 
@@ -411,3 +436,34 @@
 // Sample MusicXML Path - C:\Git\Bigsby\Music\test\TakeATrain.xml
 
 // MusicXML XSD Path - C:\Git\Bigsby\Music\Standards\musicxml.xsd
+// accidental-value
+// accidental - cautionary
+// degree-symbol-value
+// degree-type-value
+// bass, bass-step
+// tuplet
+// beam
+// slur
+// kind-value
+// articulations - staccato
+// bar-style
+// barline - segno
+// beam-value
+// clef-sign
+// notehead-value
+// group-symbol-value
+// position
+// dynamics
+// multiple-rest
+// direction-type
+// breath-mark
+// glissando
+// grace
+// harmonic
+// lyric
+// notations
+// note
+// rest
+// stem
+// tremolo
+// traditional-key - cancel
