@@ -306,33 +306,6 @@
         }
 
         var harmonyKinds = {
-            "major": "",
-            "minor": options.minorSymbol,
-            "augmented": options.augmentedSymbol,
-            "diminished": options.diminishedSymbol,
-            "dominant": "7",
-            "major-seventh": options.majorSeventhSymbol,
-            "minor-seventh": options.minorSymbol + "7",
-            "diminished-seventh": options.diminishedSymbol + "7",
-            "augmented-seventh": options.augmentedSymbol + "7",
-            "half-diminished": options.halfDiminishedSymbol,
-            "major-minor": options.minorSymbol + options.majorSeventhSymbol,
-            "major-sixth": "(6)",
-            "minor-sixth": options.minorSymbol + "(6)",
-            "dominant-ninth": "7(9)",
-            "major-ninth": "(9)",
-            "minor-ninth": options.minorSymbol + "(9)",
-            "dominant-11th": "7(11)",
-            "major-11th": "(11)",
-            "minor-11th": options.minorSymbol + "(11)",
-            "dominant-13th": "7(13)",
-            "major-13th": "(13)",
-            "minor-13th": options.minorSymbol + "(13)",
-            "suspended-second": "sus2",
-            "suspended-fourth": "sus4"
-        };
-
-        var harmonyKindsObject = {
             "major": {
                 text: "",
             },
@@ -417,10 +390,6 @@
             }
         };
 
-        function buildHarmonySuperscript(kind) {
-            return harmonyKinds[kind];
-        }
-
         function buildHarmonySubscript(harmonyNode) {
             var degreeNode = selectSingle("degree", harmonyNode);
             if (!degreeNode)
@@ -449,7 +418,7 @@
         }
 
         function buildTextNote(kind, text){
-            var kindObject = harmonyKindsObject[kind];
+            var kindObject = harmonyKinds[kind];
             return {
                 text: text + (kindObject.text || ""),
                 superscript: kindObject.superscript
@@ -509,11 +478,13 @@
 
                 var notes = [];
                 var harmonies = [];
+                var harmonyObjects =[];
 
                 var measureChildren = selectMany("*", currentMeasure);
                 var measureChild = measureChildren.iterateNext();
                 var lastTieStart;
                 var pendingHarmony;
+                var pendingHarmonyObject;
                 var hasHarmony = false;
                 var tupletNotes = [];
                 var tuplets = [];
@@ -536,6 +507,7 @@
                                 tupletNotes.push(note);
                             if (pendingHarmony) {
                                 pendingHarmony.duration = note.duration;
+                                pendingHarmonyObject.notes.push(measureChild);
                                 harmonies.push(new VF.TextNote(pendingHarmony).setContext(context));
                                 pendingHarmony = null;
                             } else {
@@ -552,6 +524,13 @@
                             break;
                         case "harmony":
                             hasHarmony = true;
+                            if (pendingHarmonyObject){
+                                harmonyObjects.push(pendingHarmony);
+                            }
+                            pendingHarmonyObject = {
+                                textNote: buildHarmony(measureChild),
+                                notes: []
+                            };
                             pendingHarmony = buildHarmony(measureChild);
                     }
                     measureChild = measureChildren.iterateNext();
@@ -572,8 +551,15 @@
                 var beams = VF.Beam.applyAndGetBeams(notesVoice);
                 var voices = [notesVoice];
 
-                if (hasHarmony)
+                if (hasHarmony){
+                    if (pendingHarmonyObject)
+                        harmonyObjects.push(pendingHarmonyObject);
+                    var textNotes = harmonyObjects.map(function (harmony){
+                        return new Text
+                    });
+                    //TODO: build harmonies calculating duration
                     voices.push(new VF.Voice(VF.TIME4_4).setMode(VF.Voice.Mode.FULL).setStrict(false).addTickables(harmonies));
+                }
 
                 formatter.joinVoices(voices).formatToStave(voices, stave);
                 voices.forEach(function (voice) { voice.draw(context, stave); });
@@ -622,6 +608,7 @@
 // Sample MusicXML Path - C:\Git\Bigsby\Music\test\TakeATrain.xml
 
 // MusicXML XSD Path - C:\Git\Bigsby\Music\Standards\musicxml.xsd
+// All Blues (multiple staves and notes)
 // degree-symbol-value
 // degree-type-value
 // beam
