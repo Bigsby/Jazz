@@ -332,6 +332,91 @@
             "suspended-fourth": "sus4"
         };
 
+        var harmonyKindsObject = {
+            "major": {
+                text: "",
+            },
+            "minor": {
+                text: options.minorSymbol,
+            },
+            "augmented": {
+                text: options.augmentedSymbol,
+            },
+            "diminished": {
+                text: options.diminishedSymbol,
+            },
+            "dominant": {
+                superscript: "7"
+            },
+            "major-seventh": {
+                text: options.majorSeventhSymbol
+            },
+            "minor-seventh": {
+                text: options.minorSymbol,
+                superscript: "7"
+            },
+            "diminished-seventh": {
+                text: options.diminishedSymbol,
+                superscript: "7"
+            },
+            "augmented-seventh": {
+                text: options.augmentedSymbol,
+                superscript: "7"
+            },
+            "half-diminished": {
+                text: options.halfDiminishedSymbol
+            },
+            "major-minor": {
+                text: options.minorSymbol,
+                superscript: options.majorSeventhSymbol
+            },
+            "major-sixth": {
+                superscript: "6"
+            },
+            "minor-sixth": {
+                text: options.minorSymbol,
+                superscript: "6"
+            },
+            "dominant-ninth": {
+                superscript: "9"
+            },
+            "major-ninth": {
+                superscript: "9"
+            },
+            "minor-ninth": {
+                text: options.minorSymbol,
+                superscript: "9"
+            },
+            "dominant-11th": {
+                superscript: "7(11)"
+            },
+            "major-11th": {
+                superscript: "11"
+            },
+            "minor-11th": {
+                text: options.minorSymbol,
+                superscript: "11"
+            },
+            "dominant-13th": {
+                superscript: "7(13)"
+            },
+            "major-13th": {
+                superscript: "13"
+            },
+            "minor-13th": {
+                text: options.minorSymbol,
+                superscript: "13"
+            },
+            "suspended-second": {
+                text: "sus",
+                superscript: "2"
+            },
+            "suspended-fourth": {
+                text: "sus",
+                superscript: "4"
+            }
+        };
+
         function buildHarmonySuperscript(kind) {
             return harmonyKinds[kind];
         }
@@ -363,35 +448,26 @@
             }
         }
 
-        function buildTextNote(kind, root){
-            // TODO add kind to superscript
+        function buildTextNote(kind, text){
+            var kindObject = harmonyKindsObject[kind];
+            return {
+                text: text + (kindObject.text || ""),
+                superscript: kindObject.superscript
+            };
         }
 
         function buildHarmony(harmonyNode) {
-            var root = selectSingle("root/root-step", harmonyNode).textContent;
-
             var text = selectSingle("root/root-step", harmonyNode).textContent;
             var rootAlterNode = selectSingle("root/root-alter", harmonyNode);
             if (rootAlterNode) {
                 text += buildHarmonyAlter(rootAlterNode.textContent);
             }
 
-            text += harmonyKinds[selectSingle("kind", harmonyNode).textContent];
+            var textNote = buildTextNote(selectSingle("kind", harmonyNode).textContent, text);
+            textNote.font = options.harmonyFont;
 
-            var bassNode = selectSingle("bass");
-            if (bassNode) {
-                text += "/" + selectSingle("base-step", bassNode).textContent;
-                var bassAlterNode = selectionChanged("bass-alter", bassNode);
-                if (bassAlterNode) {
-                    text += buildHarmonyAlter(bassAlterNode.textContent);
-                }
-            }
-            return {
-                text: text,
-                superscript: buildHarmonySubscript(harmonyNode),
-                subscript: "",
-                font: options.harmonyFont
-            };
+            textNote.subscript = buildHarmonySubscript(harmonyNode);
+            return textNote;
         }
 
         function calculateHarmonyDuration(durations) {
