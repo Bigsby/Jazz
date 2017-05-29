@@ -185,7 +185,7 @@
                         stave.continueVolta = false;
                         break;
                     case "discontinue":
-                        stave.continueVolta = false;
+                        stave.endVolta = true;
                         break;
                 }
             }
@@ -363,7 +363,13 @@
             }
         }
 
+        function buildTextNote(kind, root){
+            // TODO add kind to superscript
+        }
+
         function buildHarmony(harmonyNode) {
+            var root = selectSingle("root/root-step", harmonyNode).textContent;
+
             var text = selectSingle("root/root-step", harmonyNode).textContent;
             var rootAlterNode = selectSingle("root/root-alter", harmonyNode);
             if (rootAlterNode) {
@@ -476,7 +482,9 @@
                 }
 
                 stave.draw();
-                isVoltaOnGoing = stave.continueVolta;
+                isVoltaOnGoing |= stave.continueVolta;
+                if (stave.endVolta)
+                    isVoltaOnGoing = false;
 
                 if (tupletNotes.length) {
                     tuplets.push(new VF.Tuplet(tupletNotes));
