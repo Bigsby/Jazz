@@ -1,5 +1,6 @@
 {
     "styles": [
         "styles/appStyles.css"
-    ]
+    ],
+    "ga": "UA-94110702-6"
 }

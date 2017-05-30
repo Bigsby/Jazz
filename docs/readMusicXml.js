@@ -418,7 +418,7 @@
             }
         }
 
-        function buildTextNote(kind, text){
+        function buildTextNote(kind, text) {
             var kindObject = harmonyKinds[kind];
             return {
                 text: text + (kindObject.text || ""),
@@ -479,7 +479,7 @@
 
                 var notes = [];
                 var harmonies = [];
-                var harmonyObjects =[];
+                var harmonyObjects = [];
 
                 var measureChildren = selectMany("*", currentMeasure);
                 var measureChild = measureChildren.iterateNext();
@@ -506,17 +506,17 @@
                             notes.push(note);
                             if (note.isTuplet)
                                 tupletNotes.push(note);
-                            if (pendingHarmony) {
-                                pendingHarmony.duration = note.duration;
-                                pendingHarmonyObject.notes.push(measureChild);
-                                harmonies.push(new VF.TextNote(pendingHarmony).setContext(context));
-                                pendingHarmony = null;
-                            } else {
-                                harmonies.push(new VF.TextNote({
-                                    text: "",
-                                    duration: note.duration
-                                }).setContext(context));
-                            }
+                            // if (pendingHarmony) {
+                            //     pendingHarmony.duration = note.duration;
+                            //     pendingHarmonyObject.notes.push(measureChild);
+                            //     harmonies.push(new VF.TextNote(pendingHarmony).setContext(context));
+                            //     pendingHarmony = null;
+                            // } else {
+                            //     harmonies.push(new VF.TextNote({
+                            //         text: "",
+                            //         duration: note.duration
+                            //     }).setContext(context));
+                            // }
 
                             if (!note.isTuplet && tupletNotes.length) {
                                 tuplets.push(new VF.Tuplet(tupletNotes));
@@ -525,14 +525,15 @@
                             break;
                         case "harmony":
                             hasHarmony = true;
-                            if (pendingHarmonyObject){
-                                harmonyObjects.push(pendingHarmony);
-                            }
-                            pendingHarmonyObject = {
-                                textNote: buildHarmony(measureChild),
-                                notes: []
-                            };
-                            pendingHarmony = buildHarmony(measureChild);
+                            harmonyObjects.push(buildHarmony(measureChild));
+                            //if (pendingHarmonyObject) {
+                            //    harmonyObjects.push(pendingHarmony);
+                            //}
+                            // pendingHarmonyObject = {
+                            //     textNote: buildHarmony(measureChild),
+                            //     notes: []
+                            // };
+                            // pendingHarmony = buildHarmony(measureChild);
                     }
                     measureChild = measureChildren.iterateNext();
                 }
@@ -552,14 +553,28 @@
                 var beams = VF.Beam.applyAndGetBeams(notesVoice);
                 var voices = [notesVoice];
 
-                if (hasHarmony){
+                if (hasHarmony) {
                     if (pendingHarmonyObject)
                         harmonyObjects.push(pendingHarmonyObject);
-                    var textNotes = harmonyObjects.map(function (harmony){
-                        return new Text
+                    var harmonyDivisions = 4 / harmonyObjects.length;
+                    var harmonyDuration = "w";
+                    //TODO: actually calculate durations
+                    switch (harmonyDivisions) {
+                        case 2:
+                            harmonyDuration = "h";
+                            break;
+                        case 1:
+                            harmonyDuration = "q";
+                            break;
+                    }
+
+                    var textNotes = harmonyObjects.map(function (harmony) {
+                        harmony.duration = harmonyDuration;
+                        return new  VF.TextNote(harmony).setContext(context);
                     });
                     //TODO: build harmonies calculating duration
-                    voices.push(new VF.Voice(VF.TIME4_4).setMode(VF.Voice.Mode.FULL).setStrict(false).addTickables(harmonies));
+                    // voices.push(new VF.Voice(VF.TIME4_4).setMode(VF.Voice.Mode.FULL).setStrict(false).addTickables(harmonies));
+                    voices.push(new VF.Voice(VF.TIME4_4).setMode(VF.Voice.Mode.FULL).setStrict(false).addTickables(textNotes));
                 }
 
                 formatter.joinVoices(voices).formatToStave(voices, stave);
