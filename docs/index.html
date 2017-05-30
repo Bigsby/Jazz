@@ -12,8 +12,8 @@
 
 <body>
     <header ui-sref="home">
-        <h1>MusicXML to SVG</h1>
-        <h4>A tour programming languages</h4>
+        <h1>Jazz Standards</h1>
+        <h4>...open Jazz...</h4>
     </header>
     <section class="content">
         <section class="innerContent">
@@ -22,17 +22,15 @@
                     <div class="loader"></div>
                 </div>
             </ui-view>-->
+            <p>Using <url href="https://github.com/w3c/musicxml">MusicXMl</url> and <url href="https://github.com/0xfe/vexflow">VexFlow</url>.</p>
             <select id="selectScore">
                 <option value="TakeATrain.xml" selected>Take The 'A' Train</option>
                 <option value="BeautifulLove.xml">Beautiful Love</option>
                 <option selected value="WhenSunnyGetsBlue.xml">When Sunny Gets Blue</option>
             </select>
-            <div id="container">
-                <h1 id="title"></h1>
-                <span id="composer"></span>
-                <div id="score"></div>
-            </div>
-            
+            <h1 id="title"></h1>
+            <span id="composer"></span>
+            <div id="score"></div>
         </section>
     </section>
     <footer>

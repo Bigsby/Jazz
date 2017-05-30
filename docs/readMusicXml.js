@@ -59,9 +59,10 @@
         var leftMargin = parseInt(selectSingle("score-partwise/defaults/system-layout/system-margins/left-margin").textContent);
 
         var renderer = new VF.Renderer(scoreDiv, VF.Renderer.Backends.SVG);
-        renderer.resize(
-            parseInt(selectSingle("score-partwise/defaults/page-layout/page-width").textContent) - (leftMargin * 5),
+        var scoreWidth = parseInt(selectSingle("score-partwise/defaults/page-layout/page-width").textContent) - (leftMargin * 5);
+        renderer.resize(scoreWidth,
             parseInt(selectSingle("score-partwise/defaults/page-layout/page-height").textContent) - topOffset);
+        scoreDiv.style.width = scoreWidth + "px";
         var formatter = new VF.Formatter();
 
         var context = renderer.getContext();
